@@ -13,6 +13,11 @@
       overflow: hidden;
       background: white;
     }
+
+    #landscape canvas {
+      max-width: 100% !important;
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -21,7 +26,7 @@
   <script type="module">
     import celldega from './celldega.js'
 
-    console.log('using celldega.js')
+    console.log('using celldega.js, updated creds argument')
 
     const DEFAULT_CONFIG = {
       base_url:
@@ -32,64 +37,89 @@
       ini_y: 12200,
       ini_z: 0,
       ini_zoom: -6,
-      opacity_scale: 0.25
+      opacity_scale: 0.25,
+      max_tiles_to_view: 6
     }
 
     let current_config = { ...DEFAULT_CONFIG }
+    let received_post_message = false
 
     async function render_landscape() {
       const el = document.getElementById('landscape')
 
-      // Clear any previous contents before re-rendering
       el.innerHTML = ''
 
       const width = el.clientWidth || window.innerWidth
       const height = el.clientHeight || window.innerHeight
 
-      // If your widget.js expects credentials in a different place,
-      // adjust this options object accordingly.
-      const options =
-        current_config.aws_creds &&
-        Object.keys(current_config.aws_creds).length > 0
-          ? { aws_creds: current_config.aws_creds }
-          : {}
+      console.log('rendering Celldega Landscape with config:', current_config)
 
       await celldega.landscape_ist(
         el,
-        options,
+        {},                          // ini_model
         current_config.token,
         current_config.ini_x,
         current_config.ini_y,
         current_config.ini_z,
         current_config.ini_zoom,
         current_config.base_url,
-        '',
-        current_config.opacity_scale,
+        '',                          // dataset_name
+        current_config.opacity_scale, // trx_radius
         width,
-        height
+        height,
+        {},                          // meta_cell
+        [],                          // meta_cell_attr
+        {},                          // meta_cluster
+        [],                          // meta_cluster_attr
+        {},                          // umap
+        {},                          // nbhd
+        false,                       // nbhd_edit
+        'spatial',                   // landscape_state
+        'default',                   // segmentation
+        current_config.aws_creds || {}, // creds
+        null,                        // view_change_custom_callback
+        0,                           // rotation_orbit
+        0,                           // rotation_x
+        0,                           // rotate
+        current_config.max_tiles_to_view
       )
     }
 
-    // Listen for postMessage updates from the parent page
     window.addEventListener('message', async (event) => {
       const data = event.data
 
       if (!data || data.type !== 'celldega:init') return
 
-      // Optional: restrict to known parent origins
-      // if (event.origin !== 'https://your-parent-origin.org') return
+      received_post_message = true
+
+      console.log('received celldega:init message:', data)
 
       current_config = {
         ...current_config,
         ...(data.base_url ? { base_url: data.base_url } : {}),
-        ...(data.aws_creds ? { aws_creds: data.aws_creds } : {})
+        ...(data.aws_creds ? { aws_creds: data.aws_creds } : {}),
+        ...(data.creds ? { aws_creds: data.creds } : {}),
+        ...(data.max_tiles_to_view ? { max_tiles_to_view: data.max_tiles_to_view } : {})
       }
 
-      await render_landscape()
+      try {
+        await render_landscape()
+      } catch (error) {
+        console.error('Celldega render failed after postMessage:', error)
+      }
     })
 
-    // Initial render using defaults
-    render_landscape()
+    // Render the default placeholder only if no postMessage arrives quickly.
+    // This avoids starting the default render right before the parent sends config.
+    setTimeout(async () => {
+      if (received_post_message) return
+
+      try {
+        await render_landscape()
+      } catch (error) {
+        console.error('Default Celldega render failed:', error)
+      }
+    }, 250)
   </script>
 </body>
 </html>
