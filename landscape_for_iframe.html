@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Celldega Landscape</title>
+  <style>
+    html, body, #landscape {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: white;
+    }
+  </style>
+</head>
+<body>
+  <div id="landscape"></div>
+
+  <script type="module">
+    import celldega from './widget.js'
+
+    const DEFAULT_CONFIG = {
+      base_url:
+        'https://raw.githubusercontent.com/broadinstitute/celldega_Xenium_Prime_Mouse_Brain_Coronal_FF_outs/main/Xenium_Prime_Mouse_Brain_Coronal_FF_outs',
+      aws_creds: {},
+      token: '',
+      ini_x: 15500,
+      ini_y: 12200,
+      ini_z: 0,
+      ini_zoom: -6,
+      opacity_scale: 0.25
+    }
+
+    let current_config = { ...DEFAULT_CONFIG }
+
+    async function render_landscape() {
+      const el = document.getElementById('landscape')
+
+      // Clear any previous contents before re-rendering
+      el.innerHTML = ''
+
+      const width = el.clientWidth || window.innerWidth
+      const height = el.clientHeight || window.innerHeight
+
+      // If your widget.js expects credentials in a different place,
+      // adjust this options object accordingly.
+      const options =
+        current_config.aws_creds &&
+        Object.keys(current_config.aws_creds).length > 0
+          ? { aws_creds: current_config.aws_creds }
+          : {}
+
+      await celldega.landscape_ist(
+        el,
+        options,
+        current_config.token,
+        current_config.ini_x,
+        current_config.ini_y,
+        current_config.ini_z,
+        current_config.ini_zoom,
+        current_config.base_url,
+        '',
+        current_config.opacity_scale,
+        width,
+        height
+      )
+    }
+
+    // Listen for postMessage updates from the parent page
+    window.addEventListener('message', async (event) => {
+      const data = event.data
+
+      if (!data || data.type !== 'celldega:init') return
+
+      // Optional: restrict to known parent origins
+      // if (event.origin !== 'https://your-parent-origin.org') return
+
+      current_config = {
+        ...current_config,
+        ...(data.base_url ? { base_url: data.base_url } : {}),
+        ...(data.aws_creds ? { aws_creds: data.aws_creds } : {})
+      }
+
+      await render_landscape()
+    })
+
+    // Initial render using defaults
+    render_landscape()
+  </script>
+</body>
+</html>
